@@ -1,0 +1,12 @@
+services:
+  jrebel:
+    image: jrebel
+    container_name: jrebel
+    build: .
+    ports:
+      - "9009:9009"
+    restart: unless-stopped
+    ulimits:
+      nofile:
+        soft: 1024
+        hard: 1024
