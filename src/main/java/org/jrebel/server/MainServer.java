@@ -2,14 +2,13 @@ package org.jrebel.server;
 
 import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
-import org.jrebel.util.JrebelSign;
-import org.jrebel.util.rsasign;
 import org.apache.commons.lang3.StringUtils;
 import org.eclipse.jetty.server.Request;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.handler.AbstractHandler;
+import org.jrebel.util.JrebelSign;
+import org.jrebel.util.rsasign;
 
-import javax.servlet.ServletException;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
@@ -18,7 +17,7 @@ import java.util.Map;
 import java.util.UUID;
 
 public class MainServer extends AbstractHandler {
-    
+
     private static final String SERVER_GUID = "a1b4aea8-b031-4302-b602-670a990272cb";
 
     private static Map<String, String> parseArguments(String[] args) {
@@ -63,27 +62,8 @@ public class MainServer extends AbstractHandler {
         server.join();
     }
 
-    @Override
-    public void handle(String target, Request baseRequest, HttpServletRequest request, HttpServletResponse response)
-            throws IOException, ServletException {
-        // 设置默认状态码
-        response.setStatus(HttpServletResponse.SC_FORBIDDEN);
-        //System.out.println("target:"+target);
-        if ("/".equals(target)) {
-            indexHandler(baseRequest, request, response);
-        } else if ("/jrebel/leases".equals(target) || "/agent/leases".equals(target)) {
-            jrebelLeasesHandler(baseRequest, request, response);
-        } else if ("/jrebel/leases/1".equals(target) || "/agent/leases/1".equals(target)) {
-            jrebelLeases1Handler(baseRequest, request, response);
-        } else if ("/jrebel/validate-connection".equals(target)) {
-            jrebelValidateHandler(baseRequest, request, response);
-        } else if ("/rpc/ping.action".equals(target)) {
-            pingHandler(baseRequest, request, response);
-        } else if ("/rpc/obtainTicket.action".equals(target)) {
-            obtainTicketHandler(baseRequest, request, response);
-        } else if ("/rpc/releaseTicket.action".equals(target)) {
-            releaseTicketHandler(baseRequest, request, response);
-        }
+    private static String getUUID() {
+        return UUID.randomUUID().toString();
     }
 
     private void sendJsonResponse(HttpServletResponse response, JSONObject json) throws IOException {
@@ -100,7 +80,30 @@ public class MainServer extends AbstractHandler {
         response.getWriter().print(body);
     }
 
-    private void jrebelValidateHandler(Request baseRequest, HttpServletRequest request, HttpServletResponse response) throws IOException {
+    @Override
+    public void handle(String target, Request baseRequest, HttpServletRequest request, HttpServletResponse response)
+            throws IOException {
+        // 设置默认状态码
+        response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+        // System.out.println("target:"+target);
+        if ("/".equals(target)) {
+            indexHandler(baseRequest, request, response);
+        } else if ("/jrebel/leases".equals(target) || "/agent/leases".equals(target)) {
+            jrebelLeasesHandler(baseRequest, request, response);
+        } else if ("/jrebel/leases/1".equals(target) || "/agent/leases/1".equals(target)) {
+            jrebelLeases1Handler(baseRequest, request, response);
+        } else if ("/jrebel/validate-connection".equals(target)) {
+            jrebelValidateHandler(baseRequest, response);
+        } else if ("/rpc/ping.action".equals(target)) {
+            pingHandler(baseRequest, request, response);
+        } else if ("/rpc/obtainTicket.action".equals(target)) {
+            obtainTicketHandler(baseRequest, request, response);
+        } else if ("/rpc/releaseTicket.action".equals(target)) {
+            releaseTicketHandler(baseRequest, request, response);
+        }
+    }
+
+    private JSONObject buildHeader(Request baseRequest) {
         baseRequest.setHandled(true);
         JSONObject json = new JSONObject();
         json.put("serverVersion", "3.2.4");
@@ -108,6 +111,11 @@ public class MainServer extends AbstractHandler {
         json.put("serverGuid", SERVER_GUID);
         json.put("groupType", "managed");
         json.put("statusCode", "SUCCESS");
+        return json;
+    }
+
+    private void jrebelValidateHandler(Request baseRequest, HttpServletResponse response) throws IOException {
+        JSONObject json = buildHeader(baseRequest);
         json.put("company", "Administrator");
         json.put("canGetLease", true);
         json.put("licenseType", 1);
@@ -117,13 +125,7 @@ public class MainServer extends AbstractHandler {
     }
 
     private void jrebelLeases1Handler(Request baseRequest, HttpServletRequest request, HttpServletResponse response) throws IOException {
-        baseRequest.setHandled(true);
-        JSONObject json = new JSONObject();
-        json.put("serverVersion", "3.2.4");
-        json.put("serverProtocolVersion", "1.1");
-        json.put("serverGuid", SERVER_GUID);
-        json.put("groupType", "managed");
-        json.put("statusCode", "SUCCESS");
+        JSONObject json = buildHeader(baseRequest);
         json.put("msg", null);
         json.put("statusMessage", null);
 
@@ -135,6 +137,41 @@ public class MainServer extends AbstractHandler {
         sendJsonResponse(response, json);
     }
 
+    private void releaseTicketHandler(Request baseRequest, HttpServletRequest request, HttpServletResponse response) throws IOException {
+        baseRequest.setHandled(true);
+        String salt = request.getParameter("salt");
+        if (salt == null) {
+            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+            return;
+        }
+        String xmlContent = "<ReleaseTicketResponse><message></message><responseCode>OK</responseCode><salt>" + escapeXml(salt) + "</salt></ReleaseTicketResponse>";
+        sendXmlResponse(response, xmlContent);
+    }
+
+    private void obtainTicketHandler(Request baseRequest, HttpServletRequest request, HttpServletResponse response) throws IOException {
+        baseRequest.setHandled(true);
+        String salt = request.getParameter("salt");
+        String username = request.getParameter("userName");
+        if (salt == null || username == null) {
+            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+            return;
+        }
+        String prolongationPeriod = "607875500";
+        String xmlContent = "<ObtainTicketResponse><message></message><prolongationPeriod>" + prolongationPeriod + "</prolongationPeriod><responseCode>OK</responseCode><salt>" + escapeXml(salt) + "</salt><ticketId>1</ticketId><ticketProperties>licensee=" + escapeXml(username) + "\tlicenseType=0\t</ticketProperties></ObtainTicketResponse>";
+        sendXmlResponse(response, xmlContent);
+    }
+
+    private void pingHandler(Request baseRequest, HttpServletRequest request, HttpServletResponse response) throws IOException {
+        baseRequest.setHandled(true);
+        String salt = request.getParameter("salt");
+        if (salt == null) {
+            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+            return;
+        }
+        String xmlContent = "<PingResponse><message></message><responseCode>OK</responseCode><salt>" + escapeXml(salt) + "</salt></PingResponse>";
+        sendXmlResponse(response, xmlContent);
+    }
+
     private void jrebelLeasesHandler(Request baseRequest, HttpServletRequest request, HttpServletResponse response) throws IOException {
         baseRequest.setHandled(true);
         String clientRandomness = request.getParameter("randomness");
@@ -142,15 +179,15 @@ public class MainServer extends AbstractHandler {
         String guid = request.getParameter("guid");
         String reqOffline = request.getParameter("offline");
         boolean offline = Boolean.parseBoolean(reqOffline);
-        if(StringUtils.isNotEmpty(request.getParameter("oldGuid"))){
+        if (StringUtils.isNotEmpty(request.getParameter("oldGuid"))) {
             offline = true;
         }
-        //System.out.println(((Request) request).getParameters());
+        // System.out.println(((Request) request).getParameters());
         String validFrom = "";
         String validUntil = "";
-        
+
         String clientTime = request.getParameter("clientTime");
-        //String offlineDays = request.getParameter("offlineDays");
+        // String offlineDays = request.getParameter("offlineDays");
         try {
             long clientTimeMillis = Long.parseLong(clientTime);
             validFrom = clientTime;
@@ -193,96 +230,68 @@ public class MainServer extends AbstractHandler {
         }
     }
 
-    private void releaseTicketHandler(Request baseRequest, HttpServletRequest request, HttpServletResponse response) throws IOException {
-        baseRequest.setHandled(true);
-        String salt = request.getParameter("salt");
-        if (salt == null) {
-            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
-            return;
-        }
-        String xmlContent = "<ReleaseTicketResponse><message></message><responseCode>OK</responseCode><salt>" + escapeXml(salt) + "</salt></ReleaseTicketResponse>";
-        sendXmlResponse(response, xmlContent);
-    }
-
-    private void obtainTicketHandler(Request baseRequest, HttpServletRequest request, HttpServletResponse response) throws IOException {
-        baseRequest.setHandled(true);
-        String salt = request.getParameter("salt");
-        String username = request.getParameter("userName");
-        if (salt == null || username == null) {
-            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
-            return;
-        }
-        String prolongationPeriod = "607875500";
-        String xmlContent = "<ObtainTicketResponse><message></message><prolongationPeriod>" + prolongationPeriod + "</prolongationPeriod><responseCode>OK</responseCode><salt>" + escapeXml(salt) + "</salt><ticketId>1</ticketId><ticketProperties>licensee=" + escapeXml(username) + "\tlicenseType=0\t</ticketProperties></ObtainTicketResponse>";
-        sendXmlResponse(response, xmlContent);
-    }
-
-    private void pingHandler(Request baseRequest, HttpServletRequest request, HttpServletResponse response) throws IOException {
-        baseRequest.setHandled(true);
-        String salt = request.getParameter("salt");
-        if (salt == null) {
-            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
-            return;
-        }
-        String xmlContent = "<PingResponse><message></message><responseCode>OK</responseCode><salt>" + escapeXml(salt) + "</salt></PingResponse>";
-        sendXmlResponse(response, xmlContent);
-    }
-
     private void indexHandler(Request baseRequest, HttpServletRequest request, HttpServletResponse response) throws IOException {
         baseRequest.setHandled(true);
         response.setContentType("text/html; charset=utf-8");
         response.setStatus(HttpServletResponse.SC_OK);
 
-        String licenseUrl = request.getScheme() + "://" + request.getServerName() + ":" + request.getServerPort();
+        String licenseUrl = StringUtils.defaultIfEmpty(request.getHeader("X-Forwarded-Proto"), request.getScheme()) + "://" + request.getHeader("host");
 
-        StringBuilder html = new StringBuilder("<h3>使用说明（Instructions for use）</h3>");
-        html.append("<hr/>");
-        html.append("<h1>Hello,This is a Jrebel License Server!</h1>");
-        html.append("<p>JRebel 7.1 and earlier version Activation address was: <span style='color:red'>")
-                .append(licenseUrl).append("/{tokenname}")
-                .append("</span>, with any email.");
-        html.append("<p>JRebel 2018.1 and later version Activation address was: ")
-                .append(licenseUrl).append("/{guid}")
-                .append("(eg:<span style='color:red'>")
-                .append(licenseUrl).append("/").append(getUUID())
-                .append("</span>), with any email.");
-
-        html.append("<hr/>");
-
-        html.append("<h1>Hello，此地址是 Jrebel License Server!</h1>");
-        html.append("<p>JRebel 7.1 及旧版本激活地址: <span style='color:red'>")
-                .append(licenseUrl).append("/{tokenname}")
-                .append("</span>, 以及任意邮箱地址。");
-        html.append("<p>JRebel 2018.1+ 版本激活地址: ")
-                .append(licenseUrl).append("/{guid}")
-                .append("(例如：<span style='color:red'>")
-                .append(licenseUrl).append("/").append(getUUID())
-                .append("</span>), 以及任意邮箱地址。");
+        String html = "<h3>使用说明（Instructions for use）</h3>" + "<hr/>" +
+                "<h1>Hello,This is a Jrebel License Server!</h1>" +
+                "<p>JRebel 7.1 and earlier version Activation address was: <span style='color:red'>" +
+                licenseUrl + "/{tokenname}" +
+                "</span>, with any email." +
+                "<p>JRebel 2018.1 and later version Activation address was: " +
+                licenseUrl + "/{guid}" +
+                "(eg:<span style='color:red'>" +
+                licenseUrl + "/" + getUUID() +
+                "</span>), with any email." +
+                "<hr/>" +
+                "<h1>Hello，此地址是 Jrebel License Server!</h1>" +
+                "<p>JRebel 7.1 及旧版本激活地址: <span style='color:red'>" +
+                licenseUrl + "/{tokenname}" +
+                "</span>, 以及任意邮箱地址。" +
+                "<p>JRebel 2018.1+ 版本激活地址: " +
+                licenseUrl + "/{guid}" +
+                "(例如：<span style='color:red'>" +
+                licenseUrl + "/" + getUUID() +
+                "</span>), 以及任意邮箱地址。";
 
         response.getWriter().println(html);
     }
 
     // XML 转义工具函数
     private String escapeXml(String s) {
-        if (s == null) return "";
+        if (s == null)
+            return "";
         StringBuilder out = new StringBuilder(Math.max(16, s.length()));
         for (int i = 0; i < s.length(); i++) {
             char c = s.charAt(i);
             if (c > '>') {
                 out.append(c);
-            } else switch (c) {
-                case '&':  out.append("&amp;"); break;
-                case '<':  out.append("&lt;");  break;
-                case '>':  out.append("&gt;");  break;
-                case '"': out.append("&quot;"); break;
-                case '\'': out.append("&apos;"); break;
-                default: out.append(c); break;
-            }
+            } else
+                switch (c) {
+                    case '&':
+                        out.append("&amp;");
+                        break;
+                    case '<':
+                        out.append("&lt;");
+                        break;
+                    case '>':
+                        out.append("&gt;");
+                        break;
+                    case '"':
+                        out.append("&quot;");
+                        break;
+                    case '\'':
+                        out.append("&apos;");
+                        break;
+                    default:
+                        out.append(c);
+                        break;
+                }
         }
         return out.toString();
-    }
-    
-    private static String getUUID(){
-        return UUID.randomUUID().toString();
     }
 }
