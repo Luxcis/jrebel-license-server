@@ -16,7 +16,6 @@ public class JrebelSign {
         }else{
             s2 = StringUtils.join(new String[]{clientRandomness, serverRandomness, installationGuidString , String.valueOf(offline)}, ';');
         }
-        System.out.println(s2);
         final byte[] a2 =LicenseServer2ToJRebelPrivateKey.a(s2.getBytes());
         this.signature = ByteUtil.a(a2);
     }

@@ -26,18 +26,13 @@
 
 5. 也可以直接使用docker-compose.yml
 ```yml
-version: 'latest'
 services:
-  jrebel:
-    image: wyx176/jrebel:latest
-    container_name: jrebel
-    ports:
-      - "9009:9009"
-    restart: unless-stopped
-    ulimits:
-      nofile:
-        soft: 1024
-        hard: 1024
+   jrebel:
+      image: wyx176/jrebel:latest
+      container_name: jrebel
+      ports:
+         - "9009:9009"
+      restart: unless-stopped
 ```
 
 # Jrebel License Server for Java
@@ -80,7 +75,6 @@ docker run -d --name jrebel --restart always -e PORT=9009 -p 9009:9009 jrebel
 
 Or Usage docker-compose.yml
 ```yml
-version: 'latest'
 services:
   jrebel:
     image: wyx176/jrebel:latest
@@ -88,10 +82,6 @@ services:
     ports:
       - "9009:9009"
     restart: unless-stopped
-    ulimits:
-      nofile:
-        soft: 1024
-        hard: 1024
 ```
 default port is 9009,you can modify it
 ## Support
